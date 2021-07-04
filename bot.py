@@ -34,7 +34,7 @@ async def stat(ctx, clearInfo=False):
       for question in question_list:
         print(f'Question:{question.text}')
         score += question.getUserScore(member)
-      text += f'{member.name}: {score}\n'
+      text += '{}: {:.2f}/{}\n'.format(member.name, score, len(question_list))
   last_stat = text
   print("Sendind statistics...")
   await ctx.send(text)
@@ -89,7 +89,7 @@ async def generateChannels(ctx):
     return
   guild = ctx.message.guild
   # member -> channel
-  adminChannel = None
+  adminChannel, adminUser = None, None
   for member in voiceMemberList:
     print("Processing member:", member.name)
     channel_name = CHANNEL_PREFIX + convertName(member.name)
@@ -111,9 +111,10 @@ async def generateChannels(ctx):
     members[member] = channel
     if member.name == ctx.message.author.name:
       adminChannel = channel
+      adminUser = member
     print("Channel has been added to active members list.")
   print("Voice channel:", ', '.join([user.name for user in members.keys()]))
-  return adminChannel
+  return adminChannel, adminUser
 
 def getStatText(question: Question) -> str:
   stat_text = '**Статистика вопроса:**\n'
@@ -125,13 +126,21 @@ def getStatText(question: Question) -> str:
     user, answers = ans_info['user'], ans_info['answers']
     for ans in answers:
       emoji_dict[ans].append(user.name)
-  for answer, users in emoji_dict.items():
+  for answer, users in sorted(emoji_dict.items()):
     userlist = ', '.join([user for user in users]) if len(users) > 0 else '(пусто)'
     sign = ':white_check_mark:' if answer in question.right_answers else ':x:'
     stat_text += f'{sign} {answer} {userlist}\n'
   return stat_text
 
-async def sendQuestionEmbed(ctx, text: str, answers: list):
+async def sendEmbedToUser(question_embed: str, embed, channel, member, question, answerN):
+  react_msg = await channel.send(question_embed, embed=embed)
+  question.addInfo(react_msg, member)
+  A_unicode = '\U0001f1e6'
+  #if member.id != ctx.message.author.id:
+  for idx in range(answerN):
+    await react_msg.add_reaction(emoji=chr(ord(A_unicode) + idx))
+
+async def sendQuestionEmbed(ctx, text: str, answers: list, adminChannel, adminUser):
   text = text[re.match(r'\s*\?', text).span()[1]:]
   question = Question(text, answers)
   question_embed = ':bar_chart: **{}**\n'.format(text)
@@ -143,25 +152,24 @@ async def sendQuestionEmbed(ctx, text: str, answers: list):
     reply += mark + ' ' + ans_text + '\n'
     idx += 1
   embed = discord.Embed(description=reply, color=discord.Color.blue())
-  global members
-  adminChannel = None
-  for member, channel in members.items():
-    if member.id == ctx.message.author.id:
-      adminChannel = channel
-    react_msg = await channel.send(question_embed, embed=embed)
-    question.addInfo(react_msg, member)
-    A_unicode = '\U0001f1e6'
-    #if member.id != ctx.message.author.id:
-    for idx in range(len(answers)):
-      await react_msg.add_reaction(emoji=chr(ord(A_unicode) + idx))
-  print('Reactions was added.')
+  await sendEmbedToUser(question_embed, embed, adminChannel, adminUser, question, len(answers))
   question.stat_msg = await adminChannel.send(getStatText(question))
+  global members
+  for member, channel in members.items():
+    print(f"Sending question to user: {member.name}")
+    if member == adminUser:
+      print("Skip admin.")
+      continue
+    await sendEmbedToUser(question_embed, embed, channel, member, question, len(answers))
+  print('Reactions was added.')
   question_list.append(question)
 
 @bot.command(name='quiz')
 @commands.has_role('admin')
 async def quiz(ctx, *args):
-  adminChannel = await generateChannels(ctx)
+  global last_stat
+  last_stat = None
+  adminChannel, adminUser = await generateChannels(ctx)
   if len(args) < 2:
     await ctx.send("Not enough arguments for command `quiz`.")
     return
@@ -174,7 +182,7 @@ async def quiz(ctx, *args):
       await ctx.send("Invalid answer syntax: `+` or `=` expected.")
       return
   print("Sending question...")
-  await sendQuestionEmbed(ctx, question, answers)
+  await sendQuestionEmbed(ctx, question, answers, adminChannel, adminUser)
   print('Question was sent.')
 
 @bot.event

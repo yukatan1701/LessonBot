@@ -26,6 +26,8 @@ class Question:
     for msg in self.msg_dict.values():
       if msg['user'] == user:
         answers = msg['answers']
+        if len(answers) > len(self.right_answers):
+          return 0
         intersection = answers.intersection(self.right_answers)
         rightN = len(self.right_answers)
         return len(intersection) / rightN if rightN > 0 else 0
