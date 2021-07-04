@@ -1,9 +1,7 @@
 import os
 import re
-from typing import Iterable
 import discord
 from discord.ext.commands.core import has_role
-from discord.mentions import AllowedMentions
 from dotenv import load_dotenv
 from discord.ext import commands
 from question import Question
@@ -17,6 +15,40 @@ intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='/', intents=intents) 
 members = dict()
 question_list = []
+last_stat = None
+
+@bot.command(name='stat')
+@commands.has_role('admin')
+async def stat(ctx, clearInfo=False):
+  global last_stat, question_list
+  if last_stat is not None:
+    await ctx.send(last_stat)
+    return
+  text = '**Статистика тестирования (баллы):**\n'
+  if len(question_list) == 0:
+    text += '(пусто)\n'
+  else:
+    for member in members:
+      print(f"Member: {member.name}")
+      score = 0.0
+      for question in question_list:
+        print(f'Question:{question.text}')
+        score += question.getUserScore(member)
+      text += f'{member.name}: {score}\n'
+  last_stat = text
+  print("Sendind statistics...")
+  await ctx.send(text)
+  print("Statictics was sent.")
+  if clearInfo:
+    members.clear()
+    question_list.clear()
+
+@bot.command(name='stop')
+@commands.has_role('admin')
+async def stop(ctx):
+  print("Collecting statistics...")
+  await stat(ctx, True)
+  print("Statistics was collected.")
 
 def getVoiceMemberList(ctx):
   voice_channel = ctx.author.voice.channel
@@ -39,6 +71,9 @@ async def clear(ctx):
     if re.match(CHANNEL_PREFIX, channel.name):
       await channel.delete()
   members.clear()
+  question_list.clear()
+  global last_stat
+  last_stat = None
   print("Channels has been cleared successfully.")
 
 def convertName(name: str):
@@ -92,17 +127,20 @@ def getStatText(question: Question) -> str:
       emoji_dict[ans].append(user.name)
   for answer, users in emoji_dict.items():
     userlist = ', '.join([user for user in users]) if len(users) > 0 else '(пусто)'
-    stat_text += f'{answer} {userlist}\n'
+    sign = ':white_check_mark:' if answer in question.right_answers else ':x:'
+    stat_text += f'{sign} {answer} {userlist}\n'
   return stat_text
 
-async def sendQuestionEmbed(ctx, text: str, answers: Iterable):
-  question = Question(text, len(answers))
+async def sendQuestionEmbed(ctx, text: str, answers: list):
+  text = text[re.match(r'\s*\?', text).span()[1]:]
+  question = Question(text, answers)
   question_embed = ':bar_chart: **{}**\n'.format(text)
   idx = 0
   reply = ''
   for ans in answers:
     mark = ':regional_indicator_{}:'.format(chr(ord('a') + idx))
-    reply += mark + ' ' + ans + '\n'
+    ans_text = ans[re.match(r'\s*(?:\+|\=)', ans).span()[1]:]
+    reply += mark + ' ' + ans_text + '\n'
     idx += 1
   embed = discord.Embed(description=reply, color=discord.Color.blue())
   global members
@@ -120,14 +158,21 @@ async def sendQuestionEmbed(ctx, text: str, answers: Iterable):
   question.stat_msg = await adminChannel.send(getStatText(question))
   question_list.append(question)
 
-@bot.command(name='poll')
+@bot.command(name='quiz')
 @commands.has_role('admin')
-async def poll(ctx, *args):
+async def quiz(ctx, *args):
   adminChannel = await generateChannels(ctx)
   if len(args) < 2:
-    await ctx.send("Not enough arguments for command `poll`.")
+    await ctx.send("Not enough arguments for command `quiz`.")
     return
   question, answers = args[0], args[1:]
+  if not re.match(r"\s*\?", question):
+    await ctx.send("Invalid question syntax: `?` expected.")
+    return
+  for answer in answers:
+    if not re.match(r"\s*(?:\+|\=)", answer):
+      await ctx.send("Invalid answer syntax: `+` or `=` expected.")
+      return
   print("Sending question...")
   await sendQuestionEmbed(ctx, question, answers)
   print('Question was sent.')
@@ -149,11 +194,6 @@ async def on_reaction_remove(reaction, user):
   question = question_list[-1]
   question.removeAnswer(msg, reaction.emoji)
   await question.stat_msg.edit(content=getStatText(question))
-
-@bot.command(name='stop')
-@commands.has_role('admin')
-async def stop(ctx):
-  pass
 
 @bot.event
 async def on_ready():
