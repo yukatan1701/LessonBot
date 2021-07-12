@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 import discord
@@ -19,6 +20,7 @@ bot = commands.Bot(command_prefix='/', intents=intents)
 members = dict()
 question_list = []
 last_stat = None
+timerStarted = False
 
 @bot.command(name='stat')
 @commands.has_role('admin')
@@ -91,7 +93,8 @@ def convertName(name: str):
 @bot.command(name='start')
 @commands.has_role('admin')
 async def generateChannels(ctx):
-  global members
+  global members, timerStarted
+  timerStarted = False
   voiceMemberList = getVoiceMemberList(ctx)
   if voiceMemberList is None:
     await ctx.send("Please join the voice channel to start testing.")
@@ -192,6 +195,8 @@ async def sendQuestionEmbed(ctx, text: str, answers: list, adminChannel, adminUs
 @bot.command(name='quiz')
 @commands.has_role('admin')
 async def quiz(ctx, *args):
+  global timerStarted
+  timerStarted = False
   global last_stat
   last_stat = None
   adminChannel, adminUser = await generateChannels(ctx)
@@ -209,6 +214,11 @@ async def quiz(ctx, *args):
   print("Sending question...")
   await sendQuestionEmbed(ctx, question, answers, adminChannel, adminUser)
   print('Question was sent.')
+  timerStarted = True
+  while timerStarted:
+    await asyncio.sleep(0.3)
+    question = question_list[-1]
+    await question.stat_msg.edit(content=getStatText(question))
 
 @bot.event
 async def on_reaction_add(reaction, user):
