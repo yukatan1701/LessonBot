@@ -90,8 +90,6 @@ async def clear(ctx):
 def convertName(name: str):
   return re.sub(r'[^\w\d]+', '', name).lower()
 
-@bot.command(name='start')
-@commands.has_role('admin')
 async def generateChannels(ctx):
   global members, timerStarted
   timerStarted = False
@@ -136,6 +134,12 @@ async def generateChannels(ctx):
     print("Channel has been added to active members list.")
   print("Voice channel:", ', '.join([user.name for user in members.keys()]))
   return adminChannel, adminUser
+
+@bot.command(name='start')
+@commands.has_role('admin')
+async def start(ctx):
+  await ctx.send('Бот готов к проведению тестирования.')
+  await generateChannels(ctx)
 
 def getStatText(question: Question) -> str:
   stat_text = '**Статистика вопроса:**\n'
