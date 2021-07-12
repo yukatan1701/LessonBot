@@ -140,14 +140,21 @@ def getStatText(question: Question) -> str:
   A_unicode = '\U0001f1e6'
   for idx in range(question.answer_number):
     emoji_dict[chr(ord(A_unicode) + idx)] = []
+  answered, notAnswered = str(), str()
   for ans_info in question.msg_dict.values():
     user, answers = ans_info['user'], ans_info['answers']
+    if len(answers) > 0:
+      answered += f'{user.name}\n'
+    else:
+      notAnswered += f'{user.name}\n'
     for ans in answers:
       emoji_dict[ans].append(user.name)
   for answer, users in sorted(emoji_dict.items()):
     userlist = ', '.join([user for user in users]) if len(users) > 0 else '(пусто)'
     sign = ':white_check_mark:' if answer in question.right_answers else ':x:'
     stat_text += f'{sign} {answer} {userlist}\n'
+  stat_text += '\n**Ответили:**\n' + answered
+  stat_text += '**Не ответили:**\n' + notAnswered
   return stat_text
 
 async def sendEmbedToUser(question_embed: str, embed, channel, member, question, answerN):
