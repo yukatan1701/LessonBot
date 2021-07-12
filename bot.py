@@ -12,6 +12,7 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
 CHANNEL_PREFIX = os.getenv('TESTING_PREFIX')
 ADMIN_CHANNEL_PREFIX = os.getenv('TESTING_ADMIN_PREFIX')
+CATEGORY_NAME = os.getenv('TESTING_CATEGORY')
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='/', intents=intents) 
@@ -72,6 +73,9 @@ async def channel_list(ctx):
 @bot.command(name='clear')
 @commands.has_role('admin')
 async def clear(ctx):
+  for category in ctx.message.guild.categories:
+    if category.name == CATEGORY_NAME:
+      await category.delete()
   for channel in ctx.message.guild.text_channels:
     if re.match(CHANNEL_PREFIX, channel.name) or re.match(ADMIN_CHANNEL_PREFIX, channel.name):
       await channel.delete()
@@ -95,6 +99,12 @@ async def generateChannels(ctx):
   guild = ctx.message.guild
   # member -> channel
   adminChannel, adminUser = None, None
+  for category in guild.categories:
+    if category.name == CATEGORY_NAME:
+      categoryChannel = category
+      break
+  else:
+    categoryChannel = await guild.create_category_channel(CATEGORY_NAME)
   for member in voiceMemberList:
     print("Processing member:", member.name)
     if member.name != ctx.message.author.name:
@@ -114,7 +124,7 @@ async def generateChannels(ctx):
         ctx.message.author: discord.PermissionOverwrite(read_messages=True, send_messages=True),
         member: discord.PermissionOverwrite(read_messages=True, send_messages=True)
       }
-      channel = await guild.create_text_channel(channel_name, overwrites=overwrites)
+      channel = await guild.create_text_channel(channel_name, overwrites=overwrites, category=categoryChannel)
       print("Channel has been created.")
     members[member] = channel
     if member.name == ctx.message.author.name:
