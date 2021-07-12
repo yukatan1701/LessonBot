@@ -225,6 +225,46 @@ async def quiz(ctx, *args):
     await question.stat_msg.edit(content=getStatText(question))
 
 @bot.event
+async def on_message(message):
+  if match := re.match(r'(/quiz\s+)', message.content):
+    ctx = await bot.get_context(message)
+    arg_list = []
+    msg = message.content[match.span()[1]:]
+    expr = re.compile(r'(\?\:|\+\:|\=\:)')
+    match = re.search(expr, msg)
+    if match is None:
+      ctx.send('Syntax error.')
+      return
+    start = match.group(0).strip()
+    msg = msg[match.span()[1]:]
+    print(f'${msg}$')
+    while match:
+      #match = re.match(r'(?:\?\:|\+\:|\=\:)([^(?:\?\:|\+\:|\=\:)]+)', msg)
+      match2 = re.search(expr, msg)
+      #print(match2)
+      if match2:
+        result = msg[:match2.span()[0]]
+      else:
+        result = msg
+      result = result.strip()
+      if start == "?:":
+        result = "?" + result
+      elif start == "+:":
+        result = "+" + result
+      else:
+        result = "=" + result
+      #print(result)
+      arg_list.append(result)
+      if match2:
+        start = match2.group(0).strip()
+        msg = msg[match2.span()[1]:]
+      match = match2
+    print(*arg_list)
+    await ctx.invoke(bot.get_command('quiz'), *arg_list)
+  else:
+    await bot.process_commands(message)
+
+@bot.event
 async def on_reaction_add(reaction, user):
   msg = reaction.message
   if user == msg.author:
