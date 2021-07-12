@@ -2,6 +2,7 @@ import os
 import re
 import discord
 from discord.ext.commands.core import has_role
+from discord.permissions import make_permission_alias
 from dotenv import load_dotenv
 from discord.ext import commands
 from question import Question
@@ -10,6 +11,7 @@ load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
 CHANNEL_PREFIX = os.getenv('TESTING_PREFIX')
+ADMIN_CHANNEL_PREFIX = os.getenv('TESTING_ADMIN_PREFIX')
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='/', intents=intents) 
@@ -28,12 +30,15 @@ async def stat(ctx, clearInfo=False):
   if len(question_list) == 0:
     text += '(пусто)\n'
   else:
+    memberScore = dict()
     for member in members:
       print(f"Member: {member.name}")
       score = 0.0
       for question in question_list:
         print(f'Question:{question.text}')
         score += question.getUserScore(member)
+      memberScore[member] = score
+    for member, score in sorted(memberScore.items(), key=lambda item: item[1], reverse=True):  
       text += '{}: {:.2f}/{}\n'.format(member.name, score, len(question_list))
   last_stat = text
   print("Sendind statistics...")
@@ -68,7 +73,7 @@ async def channel_list(ctx):
 @commands.has_role('admin')
 async def clear(ctx):
   for channel in ctx.message.guild.text_channels:
-    if re.match(CHANNEL_PREFIX, channel.name):
+    if re.match(CHANNEL_PREFIX, channel.name) or re.match(ADMIN_CHANNEL_PREFIX, channel.name):
       await channel.delete()
   members.clear()
   question_list.clear()
@@ -92,7 +97,10 @@ async def generateChannels(ctx):
   adminChannel, adminUser = None, None
   for member in voiceMemberList:
     print("Processing member:", member.name)
-    channel_name = CHANNEL_PREFIX + convertName(member.name)
+    if member.name != ctx.message.author.name:
+      channel_name = CHANNEL_PREFIX + convertName(member.name)
+    else:
+      channel_name = ADMIN_CHANNEL_PREFIX + convertName(member.name)
     print("Generated name:", channel_name)
     channel = None
     for ch in guild.text_channels:
