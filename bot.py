@@ -74,15 +74,15 @@ async def stat(ctx, filename=None):
   if len(question_list) == 0:
     text += '(пусто)\n'
   else:
-    memberScore = dict()
+    member_score = dict()
     for member in members:
       print(f"Member: {member.display_name}")
       score = 0.0
       for question in question_list:
         print(f'Question:{question.text}')
         score += question.getUserScore(member)
-      memberScore[member] = score
-    for member, score in sorted(memberScore.items(), key=lambda item: item[1],\
+      member_score[member] = score
+    for member, score in sorted(member_score.items(), key=lambda item: item[1],\
       reverse=True):  
       text += '{}: {:.2f}/{}\n'.format(member.display_name, score,\
         len(question_list))
@@ -220,13 +220,13 @@ def getStatText(question: Question) -> str:
   A_unicode = '\U0001f1e6'
   for idx in range(question.answer_number):
     emoji_dict[chr(ord(A_unicode) + idx)] = []
-  answered, notAnswered = str(), str()
+  answered, not_answered = str(), str()
   for ans_info in question.msg_dict.values():
     user, answers = ans_info['user'], ans_info['answers']
     if len(answers) > 0:
       answered += f'{user.display_name}\n'
     else:
-      notAnswered += f'{user.display_name}\n'
+      not_answered += f'{user.display_name}\n'
     for ans in answers:
       emoji_dict[ans].append(user.display_name)
   for answer, users in sorted(emoji_dict.items()):
@@ -234,17 +234,17 @@ def getStatText(question: Question) -> str:
     sign = ':white_check_mark:' if answer in question.right_answers else ':x:'
     stat_text += f'{sign} {answer} {userlist}\n'
   stat_text += '\n**Ответили:**\n' + answered
-  stat_text += '**Не ответили:**\n' + notAnswered
+  stat_text += '**Не ответили:**\n' + not_answered
   logging.debug("Statistics message was generated.")
   return stat_text
 
 async def sendEmbedToUser(question_embed: str, embed, member, channel,\
-  question, answerN):
+  question, answer_n):
   react_msg = await channel.send(question_embed, embed=embed)
   question.addInfo(react_msg, member)
   A_unicode = '\U0001f1e6'
   #if member.id != ctx.message.author.id:
-  for idx in range(answerN):
+  for idx in range(answer_n):
     await react_msg.add_reaction(emoji=chr(ord(A_unicode) + idx))
   logging.debug(f"Reactions was added for member {member.display_name}")
 
