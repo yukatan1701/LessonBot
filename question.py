@@ -16,11 +16,16 @@ class Question:
   def addInfo(self, msg, user):
     self.msg_dict[msg] = { 'user': user, 'answers': set() }
 
-  def addAnswer(self, msg, answer):
+  def addAnswer(self, msg, user, answer):
+    if msg not in self.msg_dict.keys():
+      self.addInfo(msg, user)
     self.msg_dict[msg]['answers'].add(answer)
 
-  def removeAnswer(self, msg, answer):
-    self.msg_dict[msg]['answers'].discard(answer)
+  def removeAnswer(self, msg, user, answer):
+    if msg not in self.msg_dict.keys():
+      self.addInfo(msg, user)
+    else:
+      self.msg_dict[msg]['answers'].discard(answer)
 
   def getUserScore(self, user) -> float:
     for msg in self.msg_dict.values():
