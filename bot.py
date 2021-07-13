@@ -35,14 +35,14 @@ async def stat(ctx, clearInfo=False):
   else:
     memberScore = dict()
     for member in members:
-      print(f"Member: {member.name}")
+      print(f"Member: {member.display_name}")
       score = 0.0
       for question in question_list:
         print(f'Question:{question.text}')
         score += question.getUserScore(member)
       memberScore[member] = score
     for member, score in sorted(memberScore.items(), key=lambda item: item[1], reverse=True):  
-      text += '{}: {:.2f}/{}\n'.format(member.name, score, len(question_list))
+      text += '{}: {:.2f}/{}\n'.format(member.display_name, score, len(question_list))
   last_stat = text
   print("Sendind statistics...")
   await ctx.send(text)
@@ -107,11 +107,11 @@ async def generateChannels(ctx):
   else:
     categoryChannel = await guild.create_category_channel(CATEGORY_NAME)
   for member in voiceMemberList:
-    print("Processing member:", member.name)
-    if member.name != ctx.message.author.name:
-      channel_name = CHANNEL_PREFIX + convertName(member.name)
+    print("Processing member:", member.display_name)
+    if member.display_name != ctx.message.author.display_name:
+      channel_name = CHANNEL_PREFIX + convertName(member.display_name)
     else:
-      channel_name = ADMIN_CHANNEL_PREFIX + convertName(member.name)
+      channel_name = ADMIN_CHANNEL_PREFIX + convertName(member.display_name)
     print("Generated name:", channel_name)
     channel = None
     for ch in guild.text_channels:
@@ -128,11 +128,11 @@ async def generateChannels(ctx):
       channel = await guild.create_text_channel(channel_name, overwrites=overwrites, category=categoryChannel)
       print("Channel has been created.")
     members[member] = channel
-    if member.name == ctx.message.author.name:
+    if member.display_name == ctx.message.author.display_name:
       adminChannel = channel
       adminUser = member
     print("Channel has been added to active members list.")
-  print("Voice channel:", ', '.join([user.name for user in members.keys()]))
+  print("Voice channel:", ', '.join([user.display_name for user in members.keys()]))
   return adminChannel, adminUser
 
 @bot.command(name='start')
@@ -151,11 +151,11 @@ def getStatText(question: Question) -> str:
   for ans_info in question.msg_dict.values():
     user, answers = ans_info['user'], ans_info['answers']
     if len(answers) > 0:
-      answered += f'{user.name}\n'
+      answered += f'{user.display_name}\n'
     else:
-      notAnswered += f'{user.name}\n'
+      notAnswered += f'{user.display_name}\n'
     for ans in answers:
-      emoji_dict[ans].append(user.name)
+      emoji_dict[ans].append(user.display_name)
   for answer, users in sorted(emoji_dict.items()):
     userlist = ', '.join([user for user in users]) if len(users) > 0 else '(пусто)'
     sign = ':white_check_mark:' if answer in question.right_answers else ':x:'
@@ -188,7 +188,7 @@ async def sendQuestionEmbed(ctx, text: str, answers: list, adminChannel, adminUs
   question.stat_msg = await adminChannel.send(getStatText(question))
   global members
   for member, channel in members.items():
-    print(f"Sending question to user: {member.name}")
+    print(f"Sending question to user: {member.display_name}")
     if member == adminUser:
       print("Skip admin.")
       continue
@@ -290,7 +290,7 @@ async def on_ready():
     f'{bot.user} has connected to the following guild:\n'
     f'{guild.name}(id: {guild.id})'
   )
-  members = '\n - '.join([member.name for member in guild.members])
+  members = '\n - '.join([member.display_name for member in guild.members])
   print(f'Guild Members:\n - {members}')
 
 @bot.event
