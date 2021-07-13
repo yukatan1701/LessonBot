@@ -2,18 +2,33 @@ import asyncio
 import os
 import re
 import discord
+import logging
 from discord.ext.commands.core import has_role
 from discord.permissions import make_permission_alias
 from dotenv import load_dotenv
 from discord.ext import commands
 from question import Question
 
-load_dotenv()
-TOKEN = os.getenv('DISCORD_TOKEN')
-GUILD = os.getenv('DISCORD_GUILD')
-CHANNEL_PREFIX = os.getenv('TESTING_PREFIX')
-ADMIN_CHANNEL_PREFIX = os.getenv('TESTING_ADMIN_PREFIX')
-CATEGORY_NAME = os.getenv('TESTING_CATEGORY')
+def terminate():
+  exit(1)
+
+logging.basicConfig(filename='history.log', level=logging.DEBUG,
+  format='[%(asctime)s][%(levelname)s] %(message)s', datefmt='%m/%d/%Y %H:%M:%S')
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(logging.INFO)
+logging.getLogger().addHandler(stream_handler)
+logging.debug("Loading environment...")
+try:
+  load_dotenv()
+  TOKEN = os.getenv('DISCORD_TOKEN')
+  GUILD = os.getenv('DISCORD_GUILD')
+  CHANNEL_PREFIX = os.getenv('TESTING_PREFIX')
+  ADMIN_CHANNEL_PREFIX = os.getenv('TESTING_ADMIN_PREFIX')
+  CATEGORY_NAME = os.getenv('TESTING_CATEGORY')
+except Exception as e:
+  logging.critical(f'Failed to load environment: {e}')
+  terminate()
+logging.debug("Environment has been loaded successfully.")
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='/', intents=intents) 
@@ -284,19 +299,31 @@ async def on_reaction_remove(reaction, user):
 
 @bot.event
 async def on_ready():
-  print(f'{bot.user.name} has connected to Discord!')
+  bot_name = bot.user.name
+  logging.info(f'{bot_name} has connected to Discord!')
   guild = discord.utils.get(bot.guilds, name=GUILD)
-  print(
+  if guild is None:
+    logging.critical(f"Failed to connect to guild `{GUILD}`.")
+    terminate()
+  logging.info(
     f'{bot.user} has connected to the following guild:\n'
     f'{guild.name}(id: {guild.id})'
   )
-  members = '\n - '.join([member.display_name for member in guild.members])
-  print(f'Guild Members:\n - {members}')
+  guild_members = guild.members
+  members = '\n - '.join([member.display_name for member in guild_members])
+  logging.info(f'Guild Members:\n - {members}')
+  if len(guild_members) == 0 or (len(guild_members) == 1 and guild_members[0].name == bot_name):
+    logging.warning(f'Server does not contain members or the list cannot be loaded.')
+  else:
+    logging.info(f'Member list was loaded successfully.')
 
 @bot.event
 async def on_command_error(ctx, error):
   if isinstance(error, commands.errors.CheckFailure):
-    await ctx.send('You do not have the correct role for this command.')
+    msg = 'You do not have the correct role for this command.'
+    logging.info(msg)
+    await ctx.send(msg)
 
 # main
+logging.debug("Connecting to bot...")
 bot.run(TOKEN)
