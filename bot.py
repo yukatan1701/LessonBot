@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 from discord import file
 from discord.ext.commands.core import has_role
+from discord.message import Attachment
 from discord.permissions import make_permission_alias
 from dotenv import load_dotenv
 from discord.ext import commands
@@ -76,10 +77,10 @@ async def stat(ctx, filename=None):
   else:
     member_score = dict()
     for member in members:
-      print(f"Member: {member.display_name}")
+      logging.debug(f"Member: {member.display_name}")
       score = 0.0
       for question in question_list:
-        print(f'Question:{question.text}')
+        logging.debug(f'Question:{question.text}')
         score += question.getUserScore(member)
       member_score[member] = score
     for member, score in sorted(member_score.items(), key=lambda item: item[1],\
@@ -88,18 +89,18 @@ async def stat(ctx, filename=None):
         len(question_list))
   last_stat = text
   writeStat(text, filename)
-  print("Sendind statistics...")
+  logging.info("Sendind statistics...")
   await ctx.send(text)
-  print("Statictics was sent.")
+  logging.info("Statictics was sent.")
 
 @bot.command(name='stop')
 @commands.has_role('admin')
 async def stop(ctx):
-  print("Collecting statistics...")
+  logging.info("Collecting statistics...")
   await stat(ctx, STAT_PATH)
   members.clear()
   question_list.clear()
-  print("Statistics was collected.")
+  logging.info("Statistics was collected.")
 
 def getVoiceMembers(ctx):
   """Get a voice channel of the ctx author and return members of this channel.
@@ -112,13 +113,6 @@ def getVoiceMembers(ctx):
     logging.debug(f"Failed to get voice channel of user {ctx.author.name}.")
     return None
   return voice_channel.members
-
-@bot.command(name='list')
-@commands.has_role('admin')
-async def channel_list(ctx):
-  guild = ctx.message.guild
-  for channel in guild.text_channels:
-    print(channel, channel.id)
 
 @bot.command(name='clear')
 @commands.has_role('admin')
@@ -133,7 +127,7 @@ async def clear(ctx):
   question_list.clear()
   global last_stat
   last_stat = None
-  print("Channels has been cleared successfully.")
+  logging.info("Channels has been cleared successfully.")
 
 def convertName(name: str):
   return re.sub(r'[^\w\d]+', '', name).lower()
@@ -211,6 +205,9 @@ async def start(ctx):
   if result:
     logging.info('Bot is ready for testing.')
     await ctx.send('Бот готов к проведению тестирования.')
+  else:
+    logging.info('Failed to generate channels.')
+    await ctx.send('При генерации каналов произошла ошибка.')
   
 
 def getStatText(question: Question) -> str:
@@ -258,6 +255,7 @@ async def sendQuestionEmbed(ctx, text: str, answers: list, admin_user,\
     reply += f'{mark} {ans[1:]}\n'
   embed = discord.Embed(description=reply, color=discord.Color.blue())
   # send embed to admin first
+  await ctx.message.delete()
   await sendEmbedToUser(question_ftext, embed, admin_user, admin_channel,\
     question, len(answers))
   question.stat_msg = await admin_channel.send(getStatText(question))
@@ -296,10 +294,11 @@ async def quiz(ctx, *args):
   logging.info("Sending question...")
   await sendQuestionEmbed(ctx, question, answers, admin_user, admin_channel)
   logging.info("Question was sent.")
+
 @bot.event
 async def on_message(message):
-  if match := re.match(r'(/quiz\s+)', message.content):
-    ctx = await bot.get_context(message)
+  ctx = await bot.get_context(message)
+  if match := re.match(r'(/quiz\s+)', message.content):   
     if not ctx.valid:
       logging.error("Failed to get message context of the /quiz command.")
       return
@@ -339,6 +338,20 @@ async def on_message(message):
       await ctx.invoke(bot.get_command('quiz'), *arg_list)
     except TypeError as te:
       logging.error("Failed to invoke quiz:" + str(te))
+  elif message.channel.name == ADMIN_CHANNEL_PREFIX + convertName(message.author.display_name) and \
+    (message.content is None or len(message.content) == 0) and \
+    len(message.attachments) > 0:
+      _, admin_channel = await generateChannels(ctx)
+      logging.debug("Sending images to members...")
+      file_ats = []
+      for att in message.attachments:
+        file_ats.append(await att.to_file())
+      logging.debug(file_ats)
+      for _, channel in members.items():
+        if channel == admin_channel:
+          continue
+        await channel.send(files=file_ats)
+      logging.debug("End sending images.")
   else:
     await bot.process_commands(message)
 
@@ -359,6 +372,20 @@ async def on_reaction_remove(reaction, user):
   question = question_list[-1]
   question.removeAnswer(msg, user, reaction.emoji)
   await question.stat_msg.edit(content=getStatText(question))
+
+#@bot.event
+#async def on_message_delete(message):
+#  logging.debug("Deleting message...")
+#  if message.channel.name == ADMIN_CHANNEL_PREFIX + convertName(message.author.display_name) and len(question_list) > 0:
+#    question = question_list[-1]
+#    if message in question.msg_dict.keys():
+#      for msg in question.msg_dict.keys():
+#        logging.debug(f"Deleting message for {msg['user']}...")
+#        await msg.delete()
+#      question_list.pop()
+#  else:
+#    await message.delete()
+#  logging.debug("Message was deleted.")
 
 @bot.event
 async def on_ready():
